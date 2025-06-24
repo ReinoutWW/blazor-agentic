@@ -1,0 +1,193 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# HealthVoice – API Layer Strategy & Implementation Guide
+
+> **Objective**  Equip HealthVoice with a **dedicated API gateway layer** that exposes the existing Business services via **REST** and selective **gRPC** endpoints, enabling additional front‑ends (React, mobile) and third‑party integrations while remaining fully testable, observable, and compliant with our clean architecture.
+
+---
+
+## 1  High‑Level Strategy (tl;dr)
+
+| #       | Decision                                                                                            | Rationale                                                                 |
+| ------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| **S‑1** | **Introduce `HealthVoice.Api` project** (ASP.NET Core 9) as new *Presentation* sibling to Blazor.   | Keeps UI rendering concerns separate; follows current layering.           |
+| **S‑2** | **Expose REST by default; gRPC for high‑throughput or streaming actions** (e.g., vitals telemetry). | Covers broad client landscape; gRPC excels at real‑time, binary payloads. |
+| **S‑3** | **Reuse Business services via MediatR** (or direct calls) behind controllers / gRPC services.       | No duplication of logic; single source of truth.                          |
+| **S‑4** | **Contract‑first versioning** (OpenAPI + protobuf schemas) stored in `contracts/` folder.           | Enables consumer‑driven testing and backward compatibility.               |
+| **S‑5** | **Observability stack: Prometheus + Grafana + AspNetCore.HealthChecks**.                            | 100 % open‑source, Datadog‑compatible via OpenTelemetry exporter.         |
+| **S‑6** | **CI pipeline adds API‑specific tests** (integration + contract) & publishes Docker image.          | Keeps existing quality gates intact; deploys independently.               |
+| **S‑7** | **Extension methods** (`AddHealthVoiceApi()`) configure routing, versioning, health checks.         | Maintains startup brevity and convention‑over‑config.                     |
+
+---
+
+## 2  Detailed Design & Implementation
+
+### 2.1 Project Structure
+
+```
+HealthVoice.sln
+ ├─ HealthVoice.Domain
+ ├─ HealthVoice.Business
+ ├─ HealthVoice.Infrastructure
+ ├─ HealthVoice.Blazor           (Web front‑end)
+ ├─ HealthVoice.Api              (NEW) 🔹
+ └─ contracts/
+     ├─ openapi/
+     │   └─ v1.yaml
+     └─ protobuf/
+         └─ vitals.proto
+```
+
+*HealthVoice.Api* references **Business** only, mirroring the rule for Blazor UI.
+
+### 2.2 Tech Stack Choices
+
+| Concern       | Technology                                                   | Notes                                                |
+| ------------- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| Web server    | **ASP.NET Core Minimal APIs**                                | Fast to wire, OpenAPI supported out‑of‑the‑box.      |
+| Serialization | **System.Text.Json**                                         | Naming policy = camelCase, ignore cycles.            |
+| gRPC          | **ASP.NET Core gRPC** over HTTP/2                            | Use protobuf `vitals.proto`.                         |
+| Validation    | **FluentValidation** filters                                 | Shares validators from Business layer.               |
+| Mediation     | **MediatR** (optional)                                       | Keeps endpoints paper‑thin.                          |
+| AuthN/Z       | Same JWT / cookie scheme as Blazor (`AddIdentityServerJwt`). |                                                      |
+| Versioning    | `Microsoft.AspNetCore.Mvc.Versioning`                        | URL + header version strategies.                     |
+| Monitoring    | **prometheus-net.AspNetCore** + **HealthChecks.UI**          | Exposes `/metrics`, `/health/live`, `/health/ready`. |
+| Tracing       | **OpenTelemetry .NET SDK** (OTLP exporter)                   | Can stream to Datadog, Jaeger, or Tempo.             |
+
+### 2.3 Dependency‑Injection Extension
+
+```csharp
+namespace HealthVoice.Api.Extensions;
+public static class ServiceCollectionApiExtensions
+{
+    public static IServiceCollection AddHealthVoiceApi(this IServiceCollection services,
+                                                       IConfiguration cfg)
+    {
+        services
+            // Core MVC/minimal API + versioning
+            .AddEndpointsApiExplorer()
+            .AddApiVersioning(options =>
+            {
+                options.DefaultApiVersion = new ApiVersion(1,0);
+                options.AssumeDefaultVersionWhenUnspecified = true;
+                options.ReportApiVersions = true;
+            })
+            .Services
+            .AddSwaggerGen();
+
+        // Health checks
+        services.AddHealthChecks()
+                .AddDbContextCheck<AppDbContext>()
+                .AddCheck<ExternalApiHealthCheck>("external-api");
+
+        // Prometheus metrics
+        services.AddPrometheusCounters();
+
+        // Business layer
+        services.AddHealthVoiceBusiness();
+        return services;
+    }
+}
+```
+
+### 2.4 Program.cs (Api)
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+       .AddHealthVoiceInfrastructure(builder.Configuration, builder.Environment)
+       .AddHealthVoiceApi(builder.Configuration);
+
+var app = builder.Build();
+app.UseSwagger().UseSwaggerUI();
+app.MapHealthChecks("/health/live");
+app.MapPrometheusScrapingEndpoint("/metrics");
+
+// Minimal REST endpoint
+app.MapGroup("/api/v{version:apiVersion}/patients")
+   .WithTags("Patients")
+   .MapGet("/{id}", async (Guid id, IPatientService svc, CancellationToken ct)
+        => Results.Ok(await svc.GetAsync(id, ct)))
+   .WithName("GetPatientById")
+   .WithOpenApi();
+
+// gRPC service registration
+app.MapGrpcService<VitalsGrpcService>();
+
+await app.RunAsync();
+```
+
+### 2.5 gRPC Example – Vital Sign Streaming
+
+```proto
+syntax = "proto3";
+package healthvoice.v1;
+service Vitals {
+  rpc StreamVitals (stream VitalReading) returns (Ack);
+}
+message VitalReading {
+  string patientId = 1;
+  string type      = 2; // e.g. "HeartRate"
+  int32  value     = 3;
+  int64  timestamp = 4; // epoch ms
+}
+message Ack { bool ok = 1; }
+```
+
+*Implement `VitalsGrpcService` to forward readings to `VitalsService` in Business layer.*
+
+### 2.6 Observability Stack (Open Source)
+
+| Component                      | Role                 | Image                           | Notes                                     |
+| ------------------------------ | -------------------- | ------------------------------- | ----------------------------------------- |
+| **Prometheus**                 | Metrics scrape/alert | `prom/prometheus`               | Scrapes `/metrics` endpoint every 15 s.   |
+| **Grafana**                    | Dashboards           | `grafana/grafana`               | Pre‑built ASP.NET Core dashboard.         |
+| **Grafana Agent**              | OTEL → Prometheus    | `grafana/agent`                 | Optional if using OpenTelemetry exporter. |
+| **AspNetCore.HealthChecks.UI** | Health status UI     | `xabarilcoding/healthchecks-ui` | Reads `/health/ready` JSON.               |
+
+All images orchestrated via **docker‑compose.monitoring.yml**; can be swapped for Datadog Agent if SaaS observability is desired (OTLP exporter already wired).
+
+### 2.7 Testing Strategy
+
+| Layer            | Tooling                                           | Focus                                      |
+| ---------------- | ------------------------------------------------- | ------------------------------------------ |
+| REST Integration | **WebApplicationFactory<Program>** + `HttpClient` | Happy/edge path, version headers, auth.    |
+| gRPC Integration | **grpc-dotnet test host**                         | Streaming, error codes.                    |
+| Contract Tests   | **Pact.NET**                                      | Consumer‑driven contracts for React app.   |
+| Load Tests       | **k6** (open‑source) using REST & gRPC scenarios  | Baseline TPS, latency < p95 target.        |
+| Health Checks    | **AspNetCore.HealthChecks** integration test      | `/health/ready` returns 200 & JSON schema. |
+
+### 2.8 Security & Compliance
+
+* JWT Bearer across REST & gRPC; same issuer as Blazor.
+* gRPC uses TLS ‑ enforced by Kestrel config.
+* Rate limiting middleware (`AspNetCoreRateLimit`).
+* CORS: allow React domains via config.
+
+### 2.9 Deployment & Dev Experience
+
+* **Dockerfile.api** multi‑stage builds self‑contained image.
+* Compose file spins up API + monitoring stack.
+* Swagger UI available at `/swagger`; JSON served for Postman import.
+* React dev proxy: `proxy": "https://localhost:5001"`.
+
+---
+
+## 3  Implementation Checklist (merge with Playbook)
+
+1. **Create `HealthVoice.Api` project;** add to solution.
+2. Add `AddHealthVoiceApi()` extension and call in `Program.cs`.
+3. Define OpenAPI contract & generate YAML to `contracts/openapi/v1.yaml` (`dotnet swagger tofile`).
+4. Author gRPC proto files; generate C# classes via `Grpc.Tools`.
+5. Implement API endpoints & services (use MediatR pipeline).
+6. Wire OpenTelemetry, Prometheus, HealthChecks.
+7. Add integration & contract tests; update CI pipeline (`dotnet test /p:CollectCoverage`).
+8. Build & push `healthvoice-api` Docker image.
+9. Update **Interaction Contract Matrix** with API flows.
+10. Document in **README.md**: endpoints, monitoring stack, startup.
+
+> **Done** ➜ When API passes all quality gates, dashboards show green, and a sample React client fetches data successfully.

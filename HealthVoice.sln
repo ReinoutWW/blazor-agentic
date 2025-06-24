@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Business", "Hea
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Blazor", "HealthVoice.Blazor\HealthVoice.Blazor.csproj", "{40049D32-EFF3-4B83-8656-DFD3E5B0E8B1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Api", "HealthVoice.Api\HealthVoice.Api.csproj", "{969488A1-13B9-4EDD-B957-EFB07336DB67}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{40049D32-EFF3-4B83-8656-DFD3E5B0E8B1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40049D32-EFF3-4B83-8656-DFD3E5B0E8B1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40049D32-EFF3-4B83-8656-DFD3E5B0E8B1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

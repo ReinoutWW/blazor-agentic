@@ -1,0 +1,188 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# HealthVoice – Comprehensive Testing Strategy & Maintenance Guide
+
+> **Vision (TL;DR)**   A healthy test suite is **fast**, **reliable**, and **expressive**.  It gives every developer immediate feedback, prevents regressions, documents business behaviour, and scales as the codebase grows.  Tests must reflect the **Domain-Driven-Design layers** (Domain ➜ Business ➜ Infrastructure ➜ Presentation), be isolated where possible, integrated where valuable, and fully automated in CI/CD.
+
+---
+
+## 1  Test Pyramid & Scope Mapping
+
+```
+            ┌──────────────────┐ 10–20  UI/End-to-End (Playwright)
+            │    Presentation  │───────────────────────────────────
+            │    (Blazor/API)  │   40  Integration (TestServer, gRPC)
+            ├──────────────────┤───────────────────────────────────
+            │   Infrastructure │   70  Repository/EFCore In-Memory
+            ├──────────────────┤───────────────────────────────────
+            │     Business     │ 120  Service-level + MediatR
+            ├──────────────────┤───────────────────────────────────
+            │      Domain      │ 200  Pure Unit (ValueObjects, Aggregates)
+            └──────────────────┘  ────────────────────────────────
+                 ▲ Count per vertical slice (target)
+```
+
+*Numbers are guidance targets; keep **Domain** tests the largest cohort and **UI** tests the smallest.*
+
+---
+
+## 2  Framework & Tooling Matrix
+
+| Layer              | Target                                      | Framework                                     | Helper Packages                       | Isolation Strategy                   |
+| ------------------ | ------------------------------------------- | --------------------------------------------- | ------------------------------------- | ------------------------------------ |
+| **Domain**         | Aggregates, VOs, invariants                 | **xUnit** + FluentAssertions                  | AutoFixture, FsCheck (property-based) | No external deps; pure memory        |
+| **Business**       | Services, CQRS handlers                     | **xUnit** + Moq/NSubstitute                   | MediatR Test Harness                  | Mock `IUnitOfWork`; fake clock       |
+| **Infrastructure** | Repository, DbContext, migrations           | **xUnit** + EFCore In-Memory or SQLite In-Mem | Respawn reset                         | Real DbContext; SQLite file per test |
+| **API / Blazor**   | Minimal APIs, controllers, Razor components | **WebApplicationFactory** + **bUnit**         | Microsoft.AspNetCore.TestHost         | TestServer HTTP/GQL requests         |
+| **Contract**       | OpenAPI & gRPC schemas                      | **Pact.NET**                                  | protobuf-snapshot                     | Consumer-driven, mock provider       |
+| **Load**           | REST & gRPC                                 | **k6** (JS), NBomber (C#)                     | —                                     | Docker compose env                   |
+| **E2E**            | React/Browser flows                         | **Playwright**                                | Bicep test infra                      | Deployed dev stack                   |
+
+---
+
+## 3  Naming & File Structure
+
+```
+/tests
+ ├─ Domain/
+ │   └─ PatientTests.cs
+ ├─ Business/
+ │   └─ AppointmentServiceTests.cs
+ ├─ Infrastructure/
+ │   └─ EfRepositoryTests.cs
+ ├─ Api.Integration/
+ │   └─ PatientsEndpointTests.cs
+ ├─ Contracts/
+ │   └─ Pact_PatientConsumer.cs
+ ├─ Ui.E2E/
+ │   └─ BookingFlow.spec.ts
+ └─ Shared/
+     └─ TestDataBuilders.cs
+```
+
+*Folder mirrors layer. Test project names: `HealthVoice.<Layer>.Tests`.*
+
+### Test Method Scheme
+
+`WHEN_<Scenario>_SHOULD_<Expected>()`
+Example: `WHEN_PatientIsMinor_SHOULD_ThrowGuardianRequired()`
+
+---
+
+## 4  Test Data Patterns
+
+| Pattern               | Use                                  | Example                                           |
+| --------------------- | ------------------------------------ | ------------------------------------------------- |
+| **Test Data Builder** | Compose complex aggregates fluently. | `new AppointmentBuilder().WithPastDate().Build()` |
+| **Mother Object**     | Pre-baked canonical objects.         | `PatientMother.JohnDoe()`                         |
+| **AutoFixture**       | Randomised edge-case generation.     | `fixture.Create<Patient>()`                       |
+
+Builders live in `Shared/TestDataBuilders.cs` – referenced by all test projects.
+
+---
+
+## 5  Keeping Tests Fast & Reliable
+
+1. **Parallelisation**: `[assembly: CollectionBehavior(DisableTestParallelization = false)]` but use collection fixtures to isolate DB.
+2. **SQLite In-Memory**: Each infra test gets unique connection string: `Filename=:memory:?cache=shared`.
+3. **Respawn** resets state between tests → no cross-test pollution.
+4. **Deterministic clocks**: inject `IClock` fake; never rely on `DateTime.UtcNow`.
+5. Avoid Thread.Sleep: use `Task.Delay()` with virtual time (NodaTime FakeClock) if needed.
+
+---
+
+## 6  Continuous Integration Hooks
+
+```yaml
+# .github/workflows/ci.yml (excerpt)
+- name: Build & Unit Tests
+  run: dotnet test --configuration Release /p:CollectCoverage=true
+
+- name: Publish Coverage
+  uses: codecov/codecov-action@v4
+
+- name: Static Analysis
+  run: dotnet format --verify-no-changes && dotnet build -warnaserror
+
+- name: Contract Tests
+  run: dotnet test tests/Contracts
+
+- name: API Integration Tests
+  run: dotnet test tests/Api.Integration
+```
+
+*Coverage threshold enforced at 85 % global, 100 % for new lines (Coverlet + reportgenerator).*
+Pull-requests fail if coverage drops or if mutation score < 80 % (using **Stryker.NET** in nightly build).
+
+---
+
+## 7  Mutation & Regression Safety
+
+* **Stryker.NET** runs weekly; reports in SonarQube.
+* Mutation score < 70 % becomes a *quality gate* block.
+
+---
+
+## 8  Contract Verification Pipeline
+
+1. **Consumer** (React) runs Pact tests → publishes pacts to Pact Broker.
+2. **Provider** (API integration tests) verifies pacts on PR → status pushed back.
+3. CI blocks merge if contract fails.
+
+---
+
+## 9  End-to-End (Playwright) Principles
+
+* Run only *happy-path* flows; depth covered elsewhere.
+* Flaky tests quarantined via Playwright’s `.tag('@flaky')`.
+* Use Dockerised test env with seeded DB via SQL script.
+* Video & trace uploaded as artefacts on failure.
+
+---
+
+## 10  Maintenance Guidelines
+
+| Trigger                      | Action                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| **New Feature**              | Add/extend tests in affected layer; update **Interaction Contract Matrix**. |
+| **Refactor**                 | Run mutation tests to prove equivalence; ensure tests still pass.           |
+| **Flaky Test Detected**      | Quarantine label, create ticket, fix within next sprint.                    |
+| **Major Dependency Upgrade** | Rerun full suite + load tests; adjust baselines.                            |
+| **Coverage Dip**             | CI fails; PR author must add tests or justify in PR table (row *D*).        |
+
+---
+
+## 11  DDD Alignment
+
+* **Domain tests** assert **invariants & behaviors** without infrastructure.
+* **Application/Business tests** focus on **use-cases** and orchestrations.
+* **Infrastructure tests** assure **persistence integrity** (mapping, queries).
+* **Presentation tests** cover **interaction contracts** (HTTP, gRPC) not business logic.
+
+This preserves Ubiquitous Language and ensures tests change only with their bounded context.
+
+---
+
+## 12  Definition of Done for Tests
+
+1. All *public* code paths touched by tests.
+2. New business rule → property-based test or example-based + edge-case.
+3. Trunk remains **green**; nightly mutation + load tests pass.
+4. Documentation (`/tests/README.md`) updated with new patterns if introduced.
+
+---
+
+## 13  Summary
+
+A *great* HealthVoice test suite:
+
+* **Describes** behaviour in domain terms.
+* **Runs** in < 5 minutes locally, < 10 minutes in CI.
+* **Fails** fast and for a single, clear reason.
+* **Evolves** with refactors (builders, mothers, fakes abstract churn).
+* **Guards** production via mutation, contract, and load safety nets.
+
+> **Quality software = code × tests × discipline.**  Maintain this triangle and HealthVoice will remain robust and change-friendly for years.

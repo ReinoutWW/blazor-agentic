@@ -1,0 +1,221 @@
+openapi: 3.0.3
+info:
+  title: HealthVoice API
+  description: REST API for HealthVoice patient management system
+  version: "1.0"
+  contact:
+    name: HealthVoice Team
+    url: https://healthvoice.com
+servers:
+  - url: https://api.healthvoice.com/v1
+    description: Production server
+  - url: https://dev-api.healthvoice.com/v1
+    description: Development server
+  - url: http://localhost:5000/api/v1
+    description: Local development server
+
+paths:
+  /patients:
+    get:
+      tags:
+        - Patients
+      summary: Get all patients
+      description: Retrieves all patients from the system
+      operationId: getAllPatients
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PatientResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    
+    post:
+      tags:
+        - Patients
+      summary: Create a new patient
+      description: Creates a new patient in the system
+      operationId: createPatient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePatientRequest'
+      responses:
+        '201':
+          description: Patient created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatePatientResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /patients/{id}:
+    get:
+      tags:
+        - Patients
+      summary: Get patient by ID
+      description: Retrieves a specific patient by their unique identifier
+      operationId: getPatientById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Patient unique identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatientResponse'
+        '404':
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Invalid ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    PatientResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Patient unique identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        firstName:
+          type: string
+          description: Patient's first name
+          example: "John"
+        lastName:
+          type: string
+          description: Patient's last name
+          example: "Doe"
+        email:
+          type: string
+          format: email
+          description: Patient's email address
+          example: "john.doe@example.com"
+        dateOfBirth:
+          type: string
+          format: date
+          description: Patient's date of birth
+          example: "1990-01-15"
+        createdAt:
+          type: string
+          format: date-time
+          description: When the patient record was created
+          example: "2024-01-15T10:30:00Z"
+        fullName:
+          type: string
+          description: Patient's full name
+          example: "John Doe"
+      required:
+        - id
+        - firstName
+        - lastName
+        - email
+        - dateOfBirth
+        - createdAt
+        - fullName
+
+    CreatePatientRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+          description: Patient's first name
+          example: "John"
+          minLength: 1
+          maxLength: 50
+        lastName:
+          type: string
+          description: Patient's last name
+          example: "Doe"
+          minLength: 1
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          description: Patient's email address
+          example: "john.doe@example.com"
+          minLength: 1
+          maxLength: 100
+        dateOfBirth:
+          type: string
+          format: date
+          description: Patient's date of birth
+          example: "1990-01-15"
+      required:
+        - firstName
+        - lastName
+        - email
+        - dateOfBirth
+
+    CreatePatientResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Created patient's unique identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        message:
+          type: string
+          description: Success message
+          example: "Patient created successfully"
+      required:
+        - id
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "An error occurred"
+        details:
+          type: string
+          description: Detailed error information
+          example: "Validation failed for field 'email'"
+      required:
+        - message 
