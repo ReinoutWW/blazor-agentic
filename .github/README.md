@@ -70,7 +70,6 @@ IMAGE_NAME: ${{ github.repository }}
 Set these in **Settings** → **Secrets and variables** → **Actions**:
 
 - `CODECOV_TOKEN`: For code coverage reporting
-- `GITLEAKS_LICENSE`: For enhanced secret scanning
 - `SLACK_WEBHOOK`: For deployment notifications (optional)
 
 ### Required Environments
