@@ -1,0 +1,220 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Clean-Code & Style Guide for the HealthVoice Solution
+(extends the earlier architecture blueprint)
+
+0 Philosophy — “Readable First”
+Clarity beats cleverness: write expressive code that explains itself.
+
+Single Level of Abstraction per method: UI pages = UI concerns, services = business concerns, repositories = data-access concerns.
+
+Fail fast & loud: detect invalid state early with guards/ArgumentException, never let “magic nulls” leak.
+
+YAGNI + DRY + KISS always trump micro-optimisations.
+
+1 Solution-wide Roslyn/EditorConfig
+Create .editorconfig in the repo root:
+
+ini
+Copy
+Edit
+# ---- Formatting ---------------------------------
+root = true
+[*]
+indent_style      = space
+indent_size       = 4
+insert_final_newline = true
+dotnet_sort_system_directives_first = true
+csharp_new_line_before_open_brace = all
+csharp_using_directive_placement   = inside_namespace
+
+# ---- Names --------------------------------------
+dotnet_naming_rule.private_fields_underscore_style.severity = warning
+dotnet_naming_rule.private_fields_underscore_style.symbols  = private_fields
+dotnet_naming_rule.private_fields_underscore_style.style    = leading_underscore
+
+# ---- Code-quality analyzers ----------------------
+dotnet_analyzer_diagnostic.severity = warning
+Add StyleCop.Analyzers & Microsoft.CodeAnalysis.NetAnalyzers NuGet packages to all projects, and run dotnet format in CI.
+
+2 Naming Conventions
+Element	Style	Example
+Namespace	Company.Product.Layer	HealthVoice.Domain
+Class / Record	PascalCase noun	Patient, AppointmentSlot
+Interface	I + noun/role	IRepository<T>
+Method / Function	PascalCase verb-phrase	CreateAsync, MarkDone
+Async Method	Same + Async suffix	GetOpenAsync
+Private Field	_camelCase	_clock
+Local var / parameter	camelCase	utcNow
+Unit-test method	MethodUnderTest_Should_Outcome	AddAsync_ShouldPersist
+
+3 File & Folder Structure
+One public type per .cs file; file name == type name.
+
+Folders mirror namespaces; each layer contains only its own types.
+
+Domain keeps no sub-folders except Entities, ValueObjects, Enums, Contracts.
+
+4 C# Language Rules
+Turn nullable reference types on (<Nullable>enable</Nullable>).
+
+Prefer record (immutable) for domain objects; mutable state only where essential (aggregates).
+
+Use expression-bodied members for one-liner accessors; otherwise block syntax.
+
+var only when RHS type is obvious (new(), LINQ chains).
+
+Always mark asynchronous APIs with async/await; never block on Result/Wait.
+
+Public APIs must have XML-docs; internal/private rarely need comments (self-document).
+
+5 Error Handling & Result Flow
+Guards first (throw new ArgumentOutOfRangeException(nameof(x), …)).
+
+Domain/business errors ⇒ custom exceptions in HealthVoice.Domain.Exceptions.
+
+Infrastructure errors bubble up; UI layer converts to user-friendly messages.
+
+Never return bool/status + out param—use either exceptions or a Result<T> wrapper.
+
+6 Repository Pattern Ground Rules
+Rule	Description
+No IQueryable leakage	Repositories return materialised collections or single entities only.
+No tracking outside UoW	All read-only queries use AsNoTracking().
+AppDbContext internal	Access limited to HealthVoice.Infrastructure.
+Specs > ad-hoc filters	Complex queries packaged as Specification objects (IQuerySpec<T>).
+
+7 Business-Layer Coding Style
+Services are pure: no HttpContext, no UI, no EF.
+
+Separate Commands (state-changing) & Queries (read-only) — CQRS light.
+
+Validate inputs with Fluen tValidation (or built-in guard).
+
+Chain rules with small private functions—max 15–20 LOC per method.
+
+Expose DTOs if data shape differs from domain entity; map via small Mapper classes or AutoMapper profiles located in HealthVoice.Business.Mapping.
+
+8 Blazor UI Rules
+Concern	Rule
+Code-behind pattern	Keep logic in @code section or partial .razor.cs.
+Zero business rules	UI merely requests the service; never decides outcome.
+Minimal cascading	Pass few props; avoid deep cascading parameters.
+State management	Prefer StateContainer (simple class + NotifyStateChanged). No static singletons.
+Async all the way	Use async lifecycles (OnInitializedAsync).
+
+9 Asynchronous & Concurrency Best Practices
+Prefer ValueTask for hot paths (repositories) when the result often synchronously available (cached).
+
+Never mix async void except event handlers.
+
+Wrap multi-repo operations in one IUnitOfWork.SaveChangesAsync() call.
+
+For cross-aggregate consistency use optimistic concurrency (RowVersion/timestamp) + retry policy (Polly).
+
+10 Dependency Injection & Configuration
+csharp
+Copy
+Edit
+// HealthVoice.Blazor/Program.cs
+builder.Services
+    // Domain contracts
+    .AddScoped<IUnitOfWork, EfUnitOfWork>()
+    .AddScoped<IPatientService, PatientService>()
+
+    // AppDbContext factory (scoped)
+    .AddDbContextFactory<AppDbContext>((sp,opt) =>
+    {
+        var cfg = sp.GetRequiredService<IConfiguration>();
+        if (builder.HostEnvironment.IsDevelopment())
+            opt.UseSqlite(cfg.GetConnectionString("Sqlite"));
+        else
+            opt.UseSqlServer(cfg.GetConnectionString("SqlServer"));
+    });
+No service locator; every dependency required is constructor-injected.
+
+Register open generics for IRepository<T>, EfRepository<T> to remove boilerplate.
+
+11 Unit & Integration Tests
+Layer	Strategy	Tools
+Domain	Pure in-memory, no EF	xUnit/NUnit + FluentAssertions
+Business	Mock IUnitOfWork via Moq/NSubstitute	xUnit
+Infrastructure	EFCoreInMemory / SQLite In-Memory	xUnit + Respawn for clean DB
+UI	bUnit for component tests	bUnit
+
+Test method naming: WHEN_<Scenario>_SHOULD_<Expected>().
+
+12 CI / Quality Gates
+dotnet build -warnaserror
+
+dotnet format --verify-no-changes
+
+dotnet test
+
+dotnet ef migrations script executed against a scratch DB.
+
+Optional SonarQube + Dependabot.
+
+13 Sample “Perfect” Class (Business Layer)
+csharp
+Copy
+Edit
+namespace HealthVoice.Business.Services;
+
+public sealed class AppointmentService
+{
+    private readonly IUnitOfWork _uow;
+    private readonly IClock _clock;               // thin abstraction for DateTime
+
+    public AppointmentService(IUnitOfWork uow, IClock clock)
+    {
+        _uow  = uow  ?? throw new ArgumentNullException(nameof(uow));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+    }
+
+    /// <summary>
+    /// Books a new appointment for a patient.
+    /// </summary>
+    public async Task<Guid> BookAsync(BookAppointmentDto dto, CancellationToken ct)
+    {
+        Guard.Against.Null(dto);
+
+        var slotRepo = _uow.Repo<AppointmentSlot>();
+        var patientRepo = _uow.Repo<Patient>();
+
+        var slot = await slotRepo.GetAsync(dto.SlotId, ct)
+            ?? throw new SlotNotFoundException(dto.SlotId);
+
+        if (slot.IsBooked) throw new SlotAlreadyBookedException(dto.SlotId);
+
+        var patient = await patientRepo.GetAsync(dto.PatientId, ct)
+            ?? throw new PatientNotFoundException(dto.PatientId);
+
+        slot.Assign(patient, _clock.UtcNow);
+
+        await _uow.SaveChangesAsync(ct);
+        return slot.Id;
+    }
+}
+Guards at top, single abstraction level, async end-to-end, no EF types, pure domain operations.
+
+14 “Never Do This” Checklist
+public class AppDbContext in any API surface.
+
+async void (except UI event handler).
+
+DateTime.UtcNow sprinkled around (wrap in IClock).
+
+Catch-all try { … } catch (Exception) that hides cause.
+
+Business code directly instantiating SqlConnection or DbContext.
+
+Logic in Razor markup like @if (appointment.Date < DateTime.Now) { … }.
+
+Sharing entities with the browser (use DTOs).
+
+Static state except for singletons with proven immutability.
+

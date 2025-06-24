@@ -1,0 +1,164 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# HealthVoice – Extension Method Catalog & Guidelines
+
+> **Goal**  Centralise recurring boot‑strap and helper logic into clean, reusable C# **extension methods**, keeping `Program.cs` razor‑thin and enforcing architectural rules.
+
+---
+
+## 1  Philosophy & Conventions
+
+| Principle                 | Guideline                                                                                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Single Responsibility** | Each extension sets up *one* concern (e.g. Infrastructure, Business, Validation).                                                              |
+| **Discoverability**       | Namespace pattern: `HealthVoice.<Layer>.Extensions`. IntelliSense will locate at call‑site.                                                    |
+| **Naming**                | `AddXyz()` for *service registration* (IServiceCollection).  <br>`UseXyz()` for *middleware/pipeline* (IApplicationBuilder / WebAssemblyHost). |
+| **Fluent**                | Return the modified object to enable chaining.                                                                                                 |
+| **No Side Effects**       | Extensions must not call `Build()` or run async tasks.                                                                                         |
+
+---
+
+## 2  Solution‑Wide Extension Methods
+
+### 2.1 Infrastructure Registration
+
+```csharp
+namespace HealthVoice.Infrastructure.Extensions;
+
+public static class ServiceCollectionInfrastructureExtensions
+{
+    public static IServiceCollection AddHealthVoiceInfrastructure(
+        this IServiceCollection services,
+        IConfiguration cfg,
+        IWebHostEnvironment env)
+    {
+        services.AddDbContextFactory<AppDbContext>(opt =>
+        {
+            if (env.IsDevelopment())
+                opt.UseSqlite(cfg.GetConnectionString("Sqlite"));
+            else
+                opt.UseSqlServer(cfg.GetConnectionString("SqlServer"));
+        });
+
+        // Open‑generic repo + UoW
+        services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+        services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+
+        // Infrastructure utilities (clock, email, etc.)
+        services.AddSingleton<IClock, SystemClock>();
+        return services;
+    }
+}
+```
+
+*📌 `AppDbContext` stays **internal**; exposure happens only through factory inside this method.*
+
+---
+
+### 2.2 Business Layer Registration
+
+```csharp
+namespace HealthVoice.Business.Extensions;
+
+public static class ServiceCollectionBusinessExtensions
+{
+    public static IServiceCollection AddHealthVoiceBusiness(this IServiceCollection services)
+    {
+        // Reflection‑scan for all *Service suffix* classes
+        var businessAssembly = typeof(PatientService).Assembly;
+        services.Scan(scan => scan
+            .FromAssemblies(businessAssembly)
+            .AddClasses(c => c.Where(t => t.Name.EndsWith("Service")))
+            .AsSelfWithInterfaces()
+            .WithScopedLifetime());
+
+        // FluentValidation (optional)
+        services.AddValidatorsFromAssembly(businessAssembly);
+        return services;
+    }
+}
+```
+
+---
+
+### 2.3 Program.cs – Five‑Line Bootstrap
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services
+       .AddHealthVoiceInfrastructure(builder.Configuration, builder.Environment)
+       .AddHealthVoiceBusiness();
+
+builder.Services.AddRazorComponents();
+
+var app = builder.Build();
+app.MapRazorComponents<App>();
+await app.RunAsync();
+```
+
+*Result ➜ A wholly configured app in **\~10 LoC**, with all rules, DI scopes, and DB providers wired.*
+
+---
+
+## 3  Extension Methods for Testing
+
+```csharp
+public static IServiceCollection AddHealthVoiceTestInfrastructure(
+    this IServiceCollection services)
+{
+    services.AddDbContextFactory<AppDbContext>(opt =>
+         opt.UseSqlite("Filename=:memory:")
+             .EnableSensitiveDataLogging());
+    services.AddScoped(typeof(IRepository<>), typeof(EfRepository<>));
+    services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+    return services;
+}
+```
+
+Usage inside *xUnit* fixture:
+
+```csharp
+var services = new ServiceCollection()
+    .AddHealthVoiceTestInfrastructure();
+```
+
+---
+
+## 4  Helper Extension Patterns
+
+| Extension Type      | Example                                                                          | Purpose                                                        |
+| ------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Guard**           | `public static void AgainstNull(this object? obj, string name)`                  | Fluent guard clauses.                                          |
+| **Domain**          | `public static bool IsPast(this AppointmentSlot slot, IClock clock)`             | Domain‑specific helpers stay **inside domain namespace**.      |
+| **IQueryable Spec** | `public static IQueryable<Patient> WithActiveStatus(this IQueryable<Patient> q)` | Encapsulate LINQ filters to maintain Read Model consistency.   |
+| **DateTime**        | `public static DateOnly ToDateOnly(this DateTime dt)`                            | Standard conversions—place in `HealthVoice.Common.Extensions`. |
+
+---
+
+## 5  Do’s & Don’ts
+
+| ✅ Do                                                                                    | 🚫 Don’t                                                                              |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Group logically related registrations into one method (`AddHealthVoiceInfrastructure`). | Create *mega‑extension* that registers *everything* (violates Single Responsibility). |
+| Keep extension classes **static** and **public**.                                       | Store mutable state inside extension methods.                                         |
+| Provide overloads for common env/test scenarios.                                        | Catch & swallow exceptions inside extensions.                                         |
+| Name collision avoidance via proper namespaces.                                         | Put extension classes in global namespace.                                            |
+
+---
+
+## 6  Checklist Before Committing a New Extension
+
+1. Lives in `HealthVoice.<Layer>.Extensions`.
+2. Static, returns the modified target object (`this IServiceCollection …`).
+3. Covered by unit tests (@ least one happy path).
+4. Adheres to StyleCop & EditorConfig rules (no `using` outside namespace).
+5. Added to **Feature Addition Playbook** contract matrix if it affects layer interactions.
+6. Documented in current file header `/// <summary>…</summary>`.
+
+---
+
+> **Outcome**  Using these patterns, HealthVoice gains a battle‑tested, discoverable set of extension methods that keep startup code tiny, enforce layer boundaries, and accelerate developer onboarding.

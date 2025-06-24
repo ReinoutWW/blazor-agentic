@@ -1,0 +1,29 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Project (folder)	Purpose	Reference Rules
+HealthVoice.Domain	Pure POCO entities + contracts (IRepository<T>, IUnitOfWork, etc.)	References nothing
+HealthVoice.Infrastructure	EF Core setup, concrete repositories, AppDbContext, migrations	References Domain
+HealthVoice.Business	Application-service layer (use-case handlers, validation)	References Domain
+HealthVoice.Blazor	Thin UI components & DI bootstrap	References Business
+
+All namespace declarations, DI registrations and dotnet ef commands should use the same HealthVoice naming—for example:
+
+dotnet ef migrations add Init \
+  -s ../HealthVoice.Blazor \
+  -p HealthVoice.Infrastructure
+and in HealthVoice.Blazor/Program.cs:
+
+csharp
+Copy
+Edit
+services.AddScoped<IUnitOfWork, EfUnitOfWork>();
+services.AddScoped<TodoService>();
+
+services.AddDbContextFactory<AppDbContext>(opt =>
+    builder.HostEnvironment.IsDevelopment()
+        ? opt.UseSqlite("Data Source=local.db")
+        : opt.UseSqlServer(builder.Configuration.GetConnectionString("SqlServer")));
+Everything else in the earlier instructions remains identical—only the solution and project identifiers are now HealthVoice.

@@ -1,0 +1,102 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# HealthVoice – New Feature Addition Playbook
+
+> **Purpose**  A repeatable, end‑to‑end checklist that guarantees every new feature respects HealthVoice’s layered architecture, clean‑code style, and continuous‑delivery constraints.
+
+---
+
+## 0  Preparation & Ticket Grooming
+
+| 🔍 Task                     | Detail                                                                                                 |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **0.1 Clarify requirement** | Capture user story, acceptance criteria, UX mock‑ups, and non‑functional needs (perf, security, GDPR). |
+| **0.2 Impact scan**         | Identify affected domain concepts, services, repositories, UI pages, external APIs.                    |
+| **0.3 Size & slice**        | Split into vertical slices (thin walking skeletons) that cross all four layers.                        |
+| **0.4 Create git branch**   | `feature/<jira‑id>-<concise‑name>`; keep PRs ≤ 400 LOC.                                                |
+
+---
+
+## 1  Step‑by‑Step Flow (One Vertical Slice)
+
+```
+┌───────────────┐     ┌──────────────┐     ┌───────────────┐     ┌────────────┐
+│   Domain      │ --> │  Business    │ --> │ Infrastructure│ --> │    UI      │
+└───────────────┘     └──────────────┘     └───────────────┘     └────────────┘
+        ▲                   ▲                     ▲                   │
+        └───────────────────┴─────────────────────┴───────────────────┘
+                       Automated & Manual Tests
+```
+
+| #                                               | Layer                                             | What to do                                                                                                              | Cross‑checks                                                |
+| ----------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| **1**                                           | **Domain**                                        | *Define / update* entity, value object, enum, or domain event. Prefer immutable `record`.                               | **No EF** or UI types. Naming follows §2 of style guide.    |
+| **2**                                           | **Business**                                      | *Add* command/query DTO, service method, validation (FluentValidation), unit tests.                                     | No `AppDbContext`, no `HttpContext`. Use constructor DI.    |
+| **3a**                                          | **Infrastructure – Model**                        | Extend `AppDbContext` with `DbSet<TEntity>` (internal).                                                                 | 🛑 Never expose context outside repo.                       |
+| **3b**                                          | **Infrastructure – Repos**                        | Implement new `IRepository<TEntity>` or query spec.                                                                     | No LINQ leaking (`IQueryable`). All reads `AsNoTracking()`. |
+| **3c**                                          | **Migrations**                                    | `dotnet ef migrations add <Feature>` executed from **Infrastructure** project. Verify SQL for both SQLite & SQL Server. | Migration script reviewed in PR.                            |
+| **4**                                           | **Business‑Infra Glue**                           | Ensure `EfUnitOfWork` exposes repo via `Repo<TEntity>()`.                                                               | Update DI tests.                                            |
+| **5**                                           | **UI (Blazor)**                                   | Create/modify Razor page/component. Bind to Business service via `@inject`. **No logic** beyond data shaping.           | Follow UI rules (async life‑cycle, minimal cascading).      |
+| **6**                                           | **DI Registration**                               | Add to `HealthVoice.Blazor/Program.cs` if a new concrete service or options class is introduced.                        | Keep scopes aligned (`Scoped` by default).                  |
+| **7**                                           | **Tests**                                         |                                                                                                                         |                                                             |
+| *Domain*: new invariants.                       |                                                   |                                                                                                                         |                                                             |
+| *Business*: service happy‑/sad‑path.            |                                                   |                                                                                                                         |                                                             |
+| *Infra*: migration smoke‑test on SQLite in‑mem. |                                                   |                                                                                                                         |                                                             |
+| *UI*: bUnit render + interaction.               | 100 % branch coverage on new code (use Coverlet). |                                                                                                                         |                                                             |
+| **8**                                           | **Docs & Changelog**                              | Update `CHANGELOG.md` and, if public, API reference in `docs/`.                                                         | Include migration note if DB change.                        |
+| **9**                                           | **Static analysis**                               | `dotnet format`, `dotnet build -warnaserror`, analyzers.                                                                | Pipeline must stay green locally.                           |
+| **10**                                          | **Commit & PR**                                   | Push branch, open PR with template checklist, seek two approvals.                                                       | CI must pass before merge.                                  |
+| **11**                                          | **Deploy to Dev**                                 | Feature flag if risky; run smoke tests.                                                                                 | Rollback plan documented.                                   |
+
+---
+
+## 2  Interaction Contract Matrix
+
+| Trigger            | Business Service                 | Repository Call(s)                                                                     | DB / External API                          | UI Event                                                      |
+| ------------------ | -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------- |
+| User clicks *Save* | `AppointmentService.BookAsync()` | `Repo<AppointmentSlot>.GetAsync()` + `Repo<Patient>.GetAsync()` + `SaveChangesAsync()` | `AppointmentSlots` table, `Patients` table | *Save* button disabled & spinner shown until promise resolves |
+
+> **Usage**  Extend this matrix for each new feature to visualise end‑to‑end calls.
+
+---
+
+## 3  Quality Gates & PR Template (excerpt)
+
+* [ ] All layers modified if needed (Domain → Business → Infra → UI).
+* [ ] AppDbContext change covered by migration & test.
+* [ ] New/changed public APIs have XML‑docs.
+* [ ] Unit + integration tests added, passing.
+* [ ] `dotnet format` produces no diffs.
+* [ ] Performance budget not exceeded (Telemetry OK).
+* [ ] Security checklist (input validation, authz) ticked.
+
+Attach:
+
+1. **ERD diff** (dbdiagram.io PNG) if schema changed.
+2. **Screenshot/GIF** for UI tweaks.
+
+---
+
+## 4  Tips, Traps, & Patterns
+
+| ✅ Do                                                  | 🚫 Don’t                                                      |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| Use **Feature Flags** for risky flows.                | Merge partially‑implemented code behind `/* TODO */`.         |
+| Start with **failing tests** (TDD).                   | Skip tests “until QA”.                                        |
+| Re‑use **Specification pattern** for complex filters. | Leak `IQueryable` to Business/UI.                             |
+| Keep **methods ≤ 20 LOC**.                            | Put multi‑entity transactions across different UoW instances. |
+
+---
+
+### Glossary
+
+* **Vertical slice** – Minimal path slicing through UI → Business → Infra → DB.
+* **Feature Flag** – Configuration toggle (launchDarkly/appSettings) to enable logic without redeploy.
+* **Specification** – Encapsulated LINQ predicate & includes used by Repository.
+
+---
+
+> **Remember** — Every slice is done only when **all** tests pass, code is reviewed, migrations are applied, and documentation is updated. Repeat until the feature backlog is empty!
