@@ -113,7 +113,7 @@ public class PatientServiceTests
         var invalidPatientId = Guid.NewGuid();
 
         _mockPatientRepository.Setup(r => r.GetAsync(invalidPatientId, It.IsAny<CancellationToken>()))
-                             .ReturnsAsync(null);
+                             .ReturnsAsync((Patient?)null);
 
         // Act
         var result = await _patientService.GetPatientByIdAsync(invalidPatientId, CancellationToken.None);
@@ -135,7 +135,7 @@ public class PatientServiceTests
         };
 
         _mockPatientRepository.Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
-                             .ReturnsAsync(patients);
+                             .Returns(Task.FromResult<IEnumerable<Patient>>(patients));
 
         // Act
         var result = await _patientService.GetAllPatientsAsync(CancellationToken.None);
