@@ -197,14 +197,14 @@ jobs:
           
           # Start the container and test it responds
           docker run -d --name test-container \
-            -p 8080:8080 \
+            -p 8080:80 \
             -e ASPNETCORE_ENVIRONMENT=Development \
             healthvoice-${{ matrix.service }}:ci-test
           
           # Wait for container to start
           sleep 15
           
-          # Test health endpoint
+          # Test health endpoint (both services have /health/live)
           curl -f http://localhost:8080/health/live || exit 1
           
           # Cleanup
