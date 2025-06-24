@@ -33,8 +33,8 @@ jobs:
   # ============================================================================
   # Build & Push Docker Images
   # ============================================================================
-  build-and-push:
-    name: "Build & Push Images"
+  build-api:
+    name: "Build & Push API"
     runs-on: ubuntu-latest
     timeout-minutes: 20
     
@@ -43,13 +43,8 @@ jobs:
       packages: write
       
     outputs:
-      api-image: ${{ steps.meta-api.outputs.tags }}
-      blazor-image: ${{ steps.meta-blazor.outputs.tags }}
-      version: ${{ steps.meta-api.outputs.version }}
-    
-    strategy:
-      matrix:
-        service: [api, blazor]
+      image: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.meta.outputs.version }}
     
     steps:
       - name: Checkout code
@@ -66,23 +61,72 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata
-        id: meta-${{ matrix.service }}
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/healthvoice-${{ matrix.service }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/healthvoice-api
           tags: |
             type=ref,event=branch
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Build and push Docker image
+      - name: Build and push API Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: HealthVoice.${{ matrix.service == 'api' && 'Api' || 'Blazor' }}/Dockerfile
+          file: HealthVoice.Api/Dockerfile
           push: true
-          tags: ${{ steps.meta-api.outputs.tags || steps.meta-blazor.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels || steps.meta-blazor.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  build-blazor:
+    name: "Build & Push Blazor"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    permissions:
+      contents: read
+      packages: write
+      
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.meta.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/healthvoice-blazor
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Blazor Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: HealthVoice.Blazor/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
@@ -94,7 +138,7 @@ jobs:
     name: "Deploy to Development"
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: build-and-push
+    needs: [build-api, build-blazor]
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || inputs.environment == 'development'
     
     environment:
@@ -108,9 +152,9 @@ jobs:
       - name: Deploy to development
         run: |
           echo "🚀 Deploying HealthVoice to Development"
-          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
-          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
-          echo "Version: ${{ needs.build-and-push.outputs.version }}"
+          echo "API Image: ${{ needs.build-api.outputs.image }}"
+          echo "Blazor Image: ${{ needs.build-blazor.outputs.image }}"
+          echo "Version: ${{ needs.build-api.outputs.version }}"
           
           # In a real scenario, this would:
           # - Update Kubernetes manifests
@@ -147,7 +191,7 @@ jobs:
     name: "Deploy to Staging"
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build-and-push, deploy-development]
+    needs: [build-api, build-blazor, deploy-development]
     if: inputs.environment == 'staging' || (github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch')
     
     environment:
@@ -161,8 +205,8 @@ jobs:
       - name: Deploy to staging
         run: |
           echo "🚀 Deploying HealthVoice to Staging"
-          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
-          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
+          echo "API Image: ${{ needs.build-api.outputs.image }}"
+          echo "Blazor Image: ${{ needs.build-blazor.outputs.image }}"
           
           # Staging deployment logic
           echo "✅ Staging deployment completed"
@@ -186,7 +230,7 @@ jobs:
     name: "Deploy to Production"
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [build-and-push, deploy-staging]
+    needs: [build-api, build-blazor, deploy-staging]
     if: inputs.environment == 'production'
     
     environment:
@@ -211,8 +255,8 @@ jobs:
       - name: Deploy to production
         run: |
           echo "🚀 Deploying HealthVoice to Production"
-          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
-          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
+          echo "API Image: ${{ needs.build-api.outputs.image }}"
+          echo "Blazor Image: ${{ needs.build-blazor.outputs.image }}"
           
           # Blue-green or rolling deployment
           # Database migrations
