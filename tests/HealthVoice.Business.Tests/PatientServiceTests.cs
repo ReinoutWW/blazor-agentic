@@ -40,13 +40,12 @@ public class PatientServiceTests
     public async Task WHEN_CreatePatientAsync_SHOULD_CreatePatientWithCorrectData()
     {
         // Arrange
-        var createDto = new CreatePatientDto
-        {
-            FirstName = "John",
-            LastName = "Doe",
-            Email = "john.doe@example.com",
-            DateOfBirth = new DateOnly(1990, 5, 15)
-        };
+        var createDto = new CreatePatientDto(
+            "John",
+            "Doe",
+            "john.doe@example.com",
+            new DateOnly(1990, 5, 15)
+        );
 
         Patient? capturedPatient = null;
         _mockPatientRepository.Setup(r => r.AddAsync(It.IsAny<Patient>(), It.IsAny<CancellationToken>()))
@@ -54,7 +53,7 @@ public class PatientServiceTests
                              .Returns(Task.CompletedTask);
 
         _mockUnitOfWork.Setup(uow => uow.SaveChangesAsync(It.IsAny<CancellationToken>()))
-                      .Returns(Task.CompletedTask);
+                      .ReturnsAsync(1);
 
         // Act
         var result = await _patientService.CreatePatientAsync(createDto, CancellationToken.None);
@@ -176,13 +175,12 @@ public class PatientServiceTests
         string? firstName, string? lastName, string? email)
     {
         // Arrange
-        var invalidDto = new CreatePatientDto
-        {
-            FirstName = firstName!,
-            LastName = lastName!,
-            Email = email!,
-            DateOfBirth = new DateOnly(1990, 1, 1)
-        };
+        var invalidDto = new CreatePatientDto(
+            firstName!,
+            lastName!,
+            email!,
+            new DateOnly(1990, 1, 1)
+        );
 
         // Act & Assert
         await _patientService.Invoking(s => s.CreatePatientAsync(invalidDto, CancellationToken.None))
@@ -198,13 +196,12 @@ public class PatientServiceTests
     {
         // Arrange
         var futureDate = DateOnly.FromDateTime(_fixedDateTime.AddYears(1)); // Future date
-        var invalidDto = new CreatePatientDto
-        {
-            FirstName = "John",
-            LastName = "Doe",
-            Email = "john@example.com",
-            DateOfBirth = futureDate
-        };
+        var invalidDto = new CreatePatientDto(
+            "John",
+            "Doe",
+            "john@example.com",
+            futureDate
+        );
 
         // Act & Assert
         await _patientService.Invoking(s => s.CreatePatientAsync(invalidDto, CancellationToken.None))
@@ -220,13 +217,12 @@ public class PatientServiceTests
     public async Task WHEN_RepositoryThrowsException_SHOULD_PropagateException()
     {
         // Arrange
-        var createDto = new CreatePatientDto
-        {
-            FirstName = "John",
-            LastName = "Doe",
-            Email = "john@example.com",
-            DateOfBirth = new DateOnly(1990, 1, 1)
-        };
+        var createDto = new CreatePatientDto(
+            "John",
+            "Doe",
+            "john@example.com",
+            new DateOnly(1990, 1, 1)
+        );
 
         var expectedException = new InvalidOperationException("Database connection failed");
         _mockPatientRepository.Setup(r => r.AddAsync(It.IsAny<Patient>(), It.IsAny<CancellationToken>()))
@@ -242,13 +238,12 @@ public class PatientServiceTests
     public async Task WHEN_CancellationRequested_SHOULD_RespectCancellation()
     {
         // Arrange
-        var createDto = new CreatePatientDto
-        {
-            FirstName = "John",
-            LastName = "Doe",
-            Email = "john@example.com",
-            DateOfBirth = new DateOnly(1990, 1, 1)
-        };
+        var createDto = new CreatePatientDto(
+            "John",
+            "Doe",
+            "john@example.com",
+            new DateOnly(1990, 1, 1)
+        );
 
         using var cts = new CancellationTokenSource();
         cts.Cancel(); // Cancel immediately
@@ -257,4 +252,4 @@ public class PatientServiceTests
         await _patientService.Invoking(s => s.CreatePatientAsync(createDto, cts.Token))
                             .Should().ThrowAsync<OperationCanceledException>();
     }
-} 
+}
