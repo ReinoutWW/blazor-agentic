@@ -108,7 +108,6 @@ jobs:
           fi
 
       - name: Upload coverage reports
-        if: false  # Disabled until we have actual test coverage
         uses: codecov/codecov-action@v4
         with:
           directory: ./coverage
