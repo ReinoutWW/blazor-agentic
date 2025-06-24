@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
+# Copy centralized package management file first (required for restore)
+COPY ["Directory.Packages.props", "."]
+
 # Copy project files
 COPY ["HealthVoice.Api/HealthVoice.Api.csproj", "HealthVoice.Api/"]
 COPY ["HealthVoice.Business/HealthVoice.Business.csproj", "HealthVoice.Business/"]
