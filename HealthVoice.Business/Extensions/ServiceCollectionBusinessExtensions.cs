@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using HealthVoice.Business.Services;
 
@@ -15,11 +16,18 @@ public static class ServiceCollectionBusinessExtensions
     /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddHealthVoiceBusiness(this IServiceCollection services)
     {
-        // Register business services
-        services.AddScoped<PatientService>();
+        // Register all services ending with "Service" from the Business assembly
+        var businessAssembly = typeof(ServiceCollectionBusinessExtensions).Assembly;
+        
+        // Register services
+        services.Scan(scan => scan
+            .FromAssemblies(businessAssembly)
+            .AddClasses(classes => classes.Where(type => type.Name.EndsWith("Service", StringComparison.Ordinal)))
+            .AsSelfWithInterfaces()
+            .WithScopedLifetime());
 
-        // Future: Add FluentValidation if needed
-        // services.AddValidatorsFromAssembly(typeof(PatientService).Assembly);
+        // Register FluentValidation validators
+        services.AddValidatorsFromAssembly(businessAssembly);
 
         return services;
     }

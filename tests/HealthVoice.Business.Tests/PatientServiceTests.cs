@@ -171,7 +171,7 @@ public class PatientServiceTests
     [InlineData(null, "Doe", "john@example.com")] // Null FirstName
     [InlineData("John", null, "john@example.com")] // Null LastName
     [InlineData("John", "Doe", null)] // Null Email
-    public async Task WHEN_CreatePatientAsync_WithInvalidData_SHOULD_ThrowArgumentException(
+    public async Task WHEN_CreatePatientAsync_WithInvalidData_SHOULD_ThrowValidationException(
         string? firstName, string? lastName, string? email)
     {
         // Arrange
@@ -184,7 +184,7 @@ public class PatientServiceTests
 
         // Act & Assert
         await _patientService.Invoking(s => s.CreatePatientAsync(invalidDto, CancellationToken.None))
-                            .Should().ThrowAsync<ArgumentException>();
+                            .Should().ThrowAsync<FluentValidation.ValidationException>();
 
         // Verify no repository calls were made
         _mockPatientRepository.Verify(r => r.AddAsync(It.IsAny<Patient>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -192,7 +192,7 @@ public class PatientServiceTests
     }
 
     [Fact]
-    public async Task WHEN_CreatePatientAsync_WithFutureDateOfBirth_SHOULD_ThrowArgumentException()
+    public async Task WHEN_CreatePatientAsync_WithFutureDateOfBirth_SHOULD_ThrowValidationException()
     {
         // Arrange
         var futureDate = DateOnly.FromDateTime(_fixedDateTime.AddYears(1)); // Future date
@@ -205,8 +205,8 @@ public class PatientServiceTests
 
         // Act & Assert
         await _patientService.Invoking(s => s.CreatePatientAsync(invalidDto, CancellationToken.None))
-                            .Should().ThrowAsync<ArgumentException>()
-                            .WithMessage("*future*"); // Should mention future date
+                            .Should().ThrowAsync<FluentValidation.ValidationException>()
+                            .WithMessage("*past*"); // Should mention date must be in past
 
         // Verify no repository calls were made
         _mockPatientRepository.Verify(r => r.AddAsync(It.IsAny<Patient>(), It.IsAny<CancellationToken>()), Times.Never);

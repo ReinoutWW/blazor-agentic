@@ -72,7 +72,7 @@ public class PatientTests
         var currentDate = new DateOnly(2024, 6, 24); // Fixed date for testing
 
         // Act
-        var age = CalculateAge(patient.DateOfBirth, currentDate);
+        var age = patient.CalculateAge(currentDate);
 
         // Assert
         age.Should().Be(expectedAge);
@@ -90,12 +90,12 @@ public class PatientTests
         var adultPatient = new Patient { DateOfBirth = adultDateOfBirth };
 
         // Act
-        var minorAge = CalculateAge(minorPatient.DateOfBirth, currentDate);
-        var adultAge = CalculateAge(adultPatient.DateOfBirth, currentDate);
+        var isMinor = minorPatient.IsMinor(currentDate);
+        var isAdult = !adultPatient.IsMinor(currentDate);
 
         // Assert
-        (minorAge < 18).Should().BeTrue("Patient should be identified as minor");
-        (adultAge >= 18).Should().BeTrue("Patient should be identified as adult");
+        isMinor.Should().BeTrue("Patient should be identified as minor");
+        isAdult.Should().BeTrue("Patient should be identified as adult");
     }
 
     [Theory]
@@ -168,16 +168,85 @@ public class PatientTests
         patient1.CreatedAt.Should().Be(patient2.CreatedAt);
     }
 
-    /// <summary>
-    /// Helper method to calculate age - in a real scenario this might be a method on the Patient entity
-    /// </summary>
-    private static int CalculateAge(DateOnly dateOfBirth, DateOnly currentDate)
+    [Fact]
+    public void WHEN_UpdatingPatientContact_SHOULD_ReturnNewInstanceWithUpdatedData()
     {
-        var age = currentDate.Year - dateOfBirth.Year;
-        if (currentDate.DayOfYear < dateOfBirth.DayOfYear)
+        // Arrange
+        var originalPatient = new Patient
         {
-            age--;
-        }
-        return age;
+            Id = Guid.NewGuid(),
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com",
+            DateOfBirth = new DateOnly(1990, 5, 15),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        // Act
+        var updatedPatient = originalPatient.UpdateContact("Jane", "Smith", "jane.smith@example.com");
+
+        // Assert
+        updatedPatient.Should().NotBeSameAs(originalPatient, "Should return new instance");
+        updatedPatient.Id.Should().Be(originalPatient.Id, "ID should remain the same");
+        updatedPatient.FirstName.Should().Be("Jane");
+        updatedPatient.LastName.Should().Be("Smith");
+        updatedPatient.Email.Should().Be("jane.smith@example.com");
+        updatedPatient.DateOfBirth.Should().Be(originalPatient.DateOfBirth, "DateOfBirth should remain unchanged");
+        updatedPatient.CreatedAt.Should().Be(originalPatient.CreatedAt, "CreatedAt should remain unchanged");
+    }
+
+    [Fact]
+    public void WHEN_UpdatingContactWithNullValues_SHOULD_HandleGracefully()
+    {
+        // Arrange
+        var patient = new Patient
+        {
+            FirstName = "John",
+            LastName = "Doe",
+            Email = "john.doe@example.com"
+        };
+
+        // Act
+        var updatedPatient = patient.UpdateContact(null!, null!, null!);
+
+        // Assert
+        updatedPatient.FirstName.Should().Be(string.Empty);
+        updatedPatient.LastName.Should().Be(string.Empty);
+        updatedPatient.Email.Should().Be(string.Empty);
+    }
+
+    [Fact]
+    public void WHEN_UpdatingContactWithWhitespace_SHOULD_TrimAndNormalizeEmail()
+    {
+        // Arrange
+        var patient = new Patient { FirstName = "John", LastName = "Doe", Email = "john@example.com" };
+
+        // Act
+        var updatedPatient = patient.UpdateContact("  Jane  ", "  Smith  ", "  JANE.SMITH@EXAMPLE.COM  ");
+
+        // Assert
+        updatedPatient.FirstName.Should().Be("Jane");
+        updatedPatient.LastName.Should().Be("Smith");
+        updatedPatient.Email.Should().Be("jane.smith@example.com");
+    }
+
+    [Theory]
+    [InlineData(2006, 1, 1, false)]  // Exactly 18 years old on birthday = NOT a minor
+    [InlineData(2006, 1, 2, true)]   // 17 years old (birthday tomorrow) = IS a minor
+    [InlineData(2005, 12, 31, false)] // 18 years old = NOT a minor
+    [InlineData(1990, 5, 15, false)] // Adult = NOT a minor
+    [InlineData(2010, 1, 1, true)]   // 14 years old = IS a minor
+    public void WHEN_CheckingMinorStatus_SHOULD_ReturnCorrectResult(int year, int month, int day, bool expectedIsMinor)
+    {
+        // Arrange
+        var dateOfBirth = new DateOnly(year, month, day);
+        var patient = new Patient { DateOfBirth = dateOfBirth };
+        var currentDate = new DateOnly(2024, 1, 1); // Fixed reference date
+
+        // Act
+        var isMinor = patient.IsMinor(currentDate);
+
+        // Assert
+        isMinor.Should().Be(expectedIsMinor);
     }
 }
