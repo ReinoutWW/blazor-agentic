@@ -11,16 +11,16 @@ public class AppDbContext : DbContext
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
-    
+
     /// <summary>
     /// Patients collection
     /// </summary>
     internal DbSet<Patient> Patients => Set<Patient>();
-    
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        
+
         // Configure Patient entity
         modelBuilder.Entity<Patient>(entity =>
         {
@@ -32,4 +32,4 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CreatedAt).IsRequired();
         });
     }
-} 
+}

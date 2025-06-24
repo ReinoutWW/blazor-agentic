@@ -8,4 +8,4 @@ public record CreatePatientDto(
     string LastName,
     string Email,
     DateOnly DateOfBirth
-); 
+);

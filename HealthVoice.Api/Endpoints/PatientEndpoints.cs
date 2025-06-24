@@ -86,7 +86,7 @@ public static class PatientEndpoints
         try
         {
             var patient = await patientService.GetPatientByIdAsync(id, cancellationToken);
-            
+
             if (patient == null)
             {
                 return Results.NotFound(new { Message = $"Patient with ID {id} not found" });
@@ -178,4 +178,4 @@ public class CreatePatientResponse
 {
     public Guid Id { get; set; }
     public string Message { get; set; } = string.Empty;
-} 
+}

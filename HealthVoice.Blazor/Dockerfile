@@ -4,6 +4,9 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
+# Install curl for health checks
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
@@ -30,7 +33,14 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-# For demo purposes, run as root to avoid SQLite permission issues
-# In production, use proper volume mounts and permissions
+# Create a non-root user for security and give proper permissions
+RUN addgroup --system --gid 1001 healthvoice && \
+    adduser --system --uid 1001 --gid 1001 healthvoice && \
+    chown -R healthvoice:healthvoice /app
+USER healthvoice
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health/live || exit 1
 
 ENTRYPOINT ["dotnet", "HealthVoice.Blazor.dll"] 

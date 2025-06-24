@@ -32,7 +32,7 @@ public static class ServiceCollectionInfrastructureExtensions
         {
             // Prioritize SQL Server connection string if available, otherwise use SQLite
             var sqlServerConnectionString = configuration.GetConnectionString("SqlServer");
-            
+
             if (!string.IsNullOrEmpty(sqlServerConnectionString))
             {
                 options.UseSqlServer(sqlServerConnectionString);
@@ -42,7 +42,7 @@ public static class ServiceCollectionInfrastructureExtensions
                 var sqliteConnectionString = configuration.GetConnectionString("Sqlite") ?? "Data Source=healthvoice.db";
                 options.UseSqlite(sqliteConnectionString);
             }
-            
+
             if (environment.IsDevelopment())
             {
                 options.EnableSensitiveDataLogging();
@@ -69,10 +69,10 @@ public static class ServiceCollectionInfrastructureExtensions
     {
         using var scope = app.Services.CreateScope();
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
-        
+
         await using var context = await contextFactory.CreateDbContextAsync();
         await context.Database.EnsureCreatedAsync();
-        
+
         return app;
     }
-} 
+}

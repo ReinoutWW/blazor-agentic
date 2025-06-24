@@ -13,6 +13,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Blazor", "Healt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Api", "HealthVoice.Api\HealthVoice.Api.csproj", "{969488A1-13B9-4EDD-B957-EFB07336DB67}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{3C8A8E9F-DAB5-4AAC-9E61-188782A16132}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Domain.Tests", "tests\HealthVoice.Domain.Tests\HealthVoice.Domain.Tests.csproj", "{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Business.Tests", "tests\HealthVoice.Business.Tests\HealthVoice.Business.Tests.csproj", "{36170E90-39A6-46D3-A5A2-A183A2A63942}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Infrastructure.Tests", "tests\HealthVoice.Infrastructure.Tests\HealthVoice.Infrastructure.Tests.csproj", "{F743EA54-EDA7-46C7-83EC-F77C4BE877B2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HealthVoice.Api.Tests", "tests\HealthVoice.Api.Tests\HealthVoice.Api.Tests.csproj", "{8456669C-395B-4F54-BC7C-381D28362B10}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +52,27 @@ Global
 		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{969488A1-13B9-4EDD-B957-EFB07336DB67}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{36170E90-39A6-46D3-A5A2-A183A2A63942}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{36170E90-39A6-46D3-A5A2-A183A2A63942}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{36170E90-39A6-46D3-A5A2-A183A2A63942}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{36170E90-39A6-46D3-A5A2-A183A2A63942}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F743EA54-EDA7-46C7-83EC-F77C4BE877B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F743EA54-EDA7-46C7-83EC-F77C4BE877B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F743EA54-EDA7-46C7-83EC-F77C4BE877B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F743EA54-EDA7-46C7-83EC-F77C4BE877B2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8456669C-395B-4F54-BC7C-381D28362B10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8456669C-395B-4F54-BC7C-381D28362B10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8456669C-395B-4F54-BC7C-381D28362B10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8456669C-395B-4F54-BC7C-381D28362B10}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7A9CEFEA-2EF8-4385-99CC-009C5F645D0C} = {3C8A8E9F-DAB5-4AAC-9E61-188782A16132}
+		{36170E90-39A6-46D3-A5A2-A183A2A63942} = {3C8A8E9F-DAB5-4AAC-9E61-188782A16132}
+		{F743EA54-EDA7-46C7-83EC-F77C4BE877B2} = {3C8A8E9F-DAB5-4AAC-9E61-188782A16132}
+		{8456669C-395B-4F54-BC7C-381D28362B10} = {3C8A8E9F-DAB5-4AAC-9E61-188782A16132}
 	EndGlobalSection
 EndGlobal

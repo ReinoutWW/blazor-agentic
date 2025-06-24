@@ -26,17 +26,25 @@ public class PatientService
     /// <returns>The created patient's ID</returns>
     public async Task<Guid> CreatePatientAsync(CreatePatientDto dto, CancellationToken cancellationToken = default)
     {
+        // Check for cancellation at the start
+        cancellationToken.ThrowIfCancellationRequested();
+
         ArgumentNullException.ThrowIfNull(dto);
 
         // Validate business rules
         if (string.IsNullOrWhiteSpace(dto.FirstName))
             throw new ArgumentException("First name is required", nameof(dto));
-        
+
         if (string.IsNullOrWhiteSpace(dto.LastName))
             throw new ArgumentException("Last name is required", nameof(dto));
-        
+
         if (string.IsNullOrWhiteSpace(dto.Email))
             throw new ArgumentException("Email is required", nameof(dto));
+
+        // Validate date of birth is not in the future
+        var currentDate = DateOnly.FromDateTime(_clock.UtcNow);
+        if (dto.DateOfBirth > currentDate)
+            throw new ArgumentException("Date of birth cannot be in the future", nameof(dto));
 
         var patient = new Patient
         {
@@ -76,4 +84,4 @@ public class PatientService
         var patientRepo = _unitOfWork.Repo<Patient>();
         return await patientRepo.GetAsync(id, cancellationToken);
     }
-} 
+}

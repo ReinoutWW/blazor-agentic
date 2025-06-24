@@ -21,7 +21,7 @@ public class EfUnitOfWork : IUnitOfWork
     public IRepository<T> Repo<T>() where T : class
     {
         var type = typeof(T);
-        
+
         if (_repositories.TryGetValue(type, out var existingRepo))
         {
             return (IRepository<T>)existingRepo;
@@ -47,4 +47,4 @@ public class EfUnitOfWork : IUnitOfWork
         }
         GC.SuppressFinalize(this);
     }
-} 
+}

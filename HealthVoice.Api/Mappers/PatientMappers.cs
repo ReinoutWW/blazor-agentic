@@ -46,4 +46,4 @@ public static class PatientMappers
             FullName = patient.FullName
         };
     }
-} 
+}
