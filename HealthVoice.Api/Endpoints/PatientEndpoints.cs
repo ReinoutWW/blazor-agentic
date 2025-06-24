@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using HealthVoice.Business.Services;
 using HealthVoice.Business.DTOs;
+using HealthVoice.Api.Mappers;
 
 namespace HealthVoice.Api.Endpoints;
 
@@ -61,16 +62,7 @@ public static class PatientEndpoints
         try
         {
             var patients = await patientService.GetAllPatientsAsync(cancellationToken);
-            var response = patients.Select(p => new PatientResponse
-            {
-                Id = p.Id,
-                FirstName = p.FirstName,
-                LastName = p.LastName,
-                Email = p.Email,
-                DateOfBirth = p.DateOfBirth,
-                CreatedAt = p.CreatedAt,
-                FullName = p.FullName
-            });
+            var response = patients.Select(p => p.ToRestResponse());
 
             return Results.Ok(response);
         }
@@ -100,16 +92,7 @@ public static class PatientEndpoints
                 return Results.NotFound(new { Message = $"Patient with ID {id} not found" });
             }
 
-            var response = new PatientResponse
-            {
-                Id = patient.Id,
-                FirstName = patient.FirstName,
-                LastName = patient.LastName,
-                Email = patient.Email,
-                DateOfBirth = patient.DateOfBirth,
-                CreatedAt = patient.CreatedAt,
-                FullName = patient.FullName
-            };
+            var response = patient.ToRestResponse();
 
             return Results.Ok(response);
         }

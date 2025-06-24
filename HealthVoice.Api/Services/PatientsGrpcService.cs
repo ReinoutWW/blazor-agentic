@@ -1,6 +1,7 @@
 using Grpc.Core;
 using HealthVoice.Business.Services;
 using HealthVoice.Business.DTOs;
+using HealthVoice.Api.Mappers;
 using Healthvoice.V1;
 
 namespace HealthVoice.Api.Services;
@@ -45,16 +46,7 @@ public class PatientsGrpcService : Patients.PatientsBase
                 throw new RpcException(new Status(StatusCode.NotFound, "Patient not found"));
             }
 
-            return new PatientResponse
-            {
-                PatientId = patient.Id.ToString(),
-                FirstName = patient.FirstName,
-                LastName = patient.LastName,
-                Email = patient.Email,
-                DateOfBirth = patient.DateOfBirth.ToString("yyyy-MM-dd"),
-                CreatedAt = patient.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
-                FullName = patient.FullName
-            };
+            return patient.ToGrpcResponse();
         }
         catch (RpcException)
         {
@@ -135,16 +127,7 @@ public class PatientsGrpcService : Patients.PatientsBase
             
             foreach (var patient in patients)
             {
-                response.Patients.Add(new PatientResponse
-                {
-                    PatientId = patient.Id.ToString(),
-                    FirstName = patient.FirstName,
-                    LastName = patient.LastName,
-                    Email = patient.Email,
-                    DateOfBirth = patient.DateOfBirth.ToString("yyyy-MM-dd"),
-                    CreatedAt = patient.CreatedAt.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
-                    FullName = patient.FullName
-                });
+                response.Patients.Add(patient.ToGrpcResponse());
             }
 
             return response;

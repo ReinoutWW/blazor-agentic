@@ -4,6 +4,11 @@ using HealthVoice.Business.Extensions;
 using HealthVoice.Infrastructure.Extensions;
 using HealthVoice.Infrastructure.Data;
 using Prometheus;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Text.Json;
 
 namespace HealthVoice.Api.Extensions;
 
@@ -74,39 +79,60 @@ public static class ServiceCollectionApiExtensions
         app.UseHttpsRedirection();
         app.UseRouting();
         
-        // Health checks endpoints
-        app.MapHealthChecks("/health/live", new()
-        {
-            Predicate = _ => false // Only basic liveness check
-        });
-        
-        app.MapHealthChecks("/health/ready", new()
-        {
-            ResponseWriter = async (context, report) =>
-            {
-                context.Response.ContentType = "application/json";
-                var response = new
-                {
-                    status = report.Status.ToString(),
-                    totalDuration = report.TotalDuration.ToString(),
-                    entries = report.Entries.ToDictionary(
-                        kvp => kvp.Key,
-                        kvp => new
-                        {
-                            status = kvp.Value.Status.ToString(),
-                            duration = kvp.Value.Duration.ToString(),
-                            description = kvp.Value.Description ?? string.Empty,
-                            data = kvp.Value.Data
-                        }
-                    )
-                };
-                await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
-            }
-        });
+        // Health checks endpoints using shared extension
+        app.MapHealthVoiceHealthChecks();
 
         // Prometheus metrics endpoint
         app.MapMetrics("/metrics");
 
         return app;
+    }
+
+    /// <summary>
+    /// Maps health check endpoints with standardized JSON response formatting
+    /// </summary>
+    /// <param name="app">The web application</param>
+    /// <returns>The web application for chaining</returns>
+    public static WebApplication MapHealthVoiceHealthChecks(this WebApplication app)
+    {
+        // Liveness check - basic availability
+        app.MapHealthChecks("/health/live", new HealthCheckOptions
+        {
+            Predicate = _ => false // Only basic liveness check
+        });
+
+        // Readiness check - full health with detailed JSON response
+        app.MapHealthChecks("/health/ready", new HealthCheckOptions
+        {
+            ResponseWriter = WriteHealthCheckResponse
+        });
+
+        return app;
+    }
+
+    /// <summary>
+    /// Writes a standardized JSON health check response
+    /// </summary>
+    private static async Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
+    {
+        context.Response.ContentType = "application/json";
+        
+        var response = new
+        {
+            status = report.Status.ToString(),
+            totalDuration = report.TotalDuration.ToString(),
+            entries = report.Entries.ToDictionary(
+                kvp => kvp.Key,
+                kvp => new
+                {
+                    status = kvp.Value.Status.ToString(),
+                    duration = kvp.Value.Duration.ToString(),
+                    description = kvp.Value.Description ?? string.Empty,
+                    data = kvp.Value.Data
+                }
+            )
+        };
+
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
     }
 } 

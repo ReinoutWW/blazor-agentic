@@ -39,34 +39,7 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Map health check endpoints
-app.MapHealthChecks("/health/ready", new()
-{
-    ResponseWriter = async (context, report) =>
-    {
-        context.Response.ContentType = "application/json";
-        var response = new
-        {
-            status = report.Status.ToString(),
-            totalDuration = report.TotalDuration.ToString(),
-            entries = report.Entries.ToDictionary(
-                kvp => kvp.Key,
-                kvp => new
-                {
-                    status = kvp.Value.Status.ToString(),
-                    duration = kvp.Value.Duration.ToString(),
-                    description = kvp.Value.Description ?? string.Empty,
-                    data = kvp.Value.Data
-                }
-            )
-        };
-        await context.Response.WriteAsync(System.Text.Json.JsonSerializer.Serialize(response));
-    }
-});
-
-app.MapHealthChecks("/health/live", new()
-{
-    Predicate = _ => false // Only basic liveness check
-});
+// Map health check endpoints using shared extension
+app.MapHealthVoiceHealthChecks();
 
 await app.RunAsync();
