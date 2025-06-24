@@ -30,16 +30,17 @@ public static class ServiceCollectionInfrastructureExtensions
         // Database context factory
         services.AddDbContextFactory<AppDbContext>(options =>
         {
-            if (environment.IsDevelopment())
+            // Prioritize SQL Server connection string if available, otherwise use SQLite
+            var sqlServerConnectionString = configuration.GetConnectionString("SqlServer");
+            
+            if (!string.IsNullOrEmpty(sqlServerConnectionString))
             {
-                var connectionString = configuration.GetConnectionString("Sqlite") ?? "Data Source=healthvoice.db";
-                options.UseSqlite(connectionString);
+                options.UseSqlServer(sqlServerConnectionString);
             }
             else
             {
-                var connectionString = configuration.GetConnectionString("SqlServer") 
-                    ?? throw new InvalidOperationException("SqlServer connection string is required for production");
-                options.UseSqlServer(connectionString);
+                var sqliteConnectionString = configuration.GetConnectionString("Sqlite") ?? "Data Source=healthvoice.db";
+                options.UseSqlite(sqliteConnectionString);
             }
             
             if (environment.IsDevelopment())

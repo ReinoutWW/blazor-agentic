@@ -1,0 +1,134 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# HealthVoice – Code‑Review & Quality‑Control Checklist
+
+> **Purpose**  Give reviewers and authors a single, authoritative prompt to verify that every pull‑request (PR) upholds HealthVoice’s architecture, clean‑code rules, security posture, and CI/CD constraints. This document **extends and references** the *New Feature Addition Playbook* and the *Clean‑Code Style Guide*.
+
+---
+
+## 0  How to Use This Prompt
+
+1. **Attach it to every PR** description (copy/paste the *Quick‑Start Table* below).
+2. Author completes the *Self‑Check* column **before requesting review**.
+3. Each reviewer initials ✓/✗ per row; merge only when all mandatory items are ✓.
+4. Any ✗ requires follow‑up commits or a new ticket.
+
+---
+
+## 1  Quick‑Start Table (Paste into PR)
+
+| ID    | Area                  | Question                                                           | Self‑Check | Rev 1 | Rev 2 |
+| ----- | --------------------- | ------------------------------------------------------------------ | ---------- | ----- | ----- |
+| **A** | **Architecture**      | All changes obey layering (Domain → Business → Infra → UI)?        |            |       |       |
+| **B** | **AppDbContext**      | Context stays *internal*; never leaks outside Infrastructure?      |            |       |       |
+| **C** | **Clean Code**        | Names, length, SRP, StyleCop, nullable, Guard clauses?             |            |       |       |
+| **D** | **Tests**             | Unit + integration tests added; ≥ 100 % coverage on new code?      |            |       |       |
+| **E** | **Migrations**        | EF migration created, reviewed, applies on SQLite & SQL Server?    |            |       |       |
+| **F** | **Security**          | Inputs validated, authn/authz handled, no secrets in code?         |            |       |       |
+| **G** | **Performance**       | No inadvertent N + 1, streaming where needed, telemetry budget ok? |            |       |       |
+| **H** | **Docs**              | CHANGELOG, API docs, screenshots, ERD diff updated?                |            |       |       |
+| **I** | **CI & Static**       | `dotnet format`, analyzers, SonarQube, pipeline all green?         |            |       |       |
+| **J** | **Extension Methods** | New registrations added via `AddHealthVoice*` extensions only?     |            |       |       |
+| **K** | **Never‑Do‑This**     | No violations of the *Never Do This* list?                         |            |       |       |
+| **L** | **Feature Playbook**  | All 11 steps in Playbook §1 completed?                             |            |       |       |
+
+> **Tip**  Use GitHub PR templates to embed this table automatically.
+
+---
+
+## 2  Detailed Review Points
+
+### 2.1 Architecture & Layering
+
+* Verify references (`.csproj`) conform to table: Domain → Business → Infrastructure → UI.
+* No **UI** project references Infrastructure DLLs.
+* Check for accidental `using HealthVoice.Infrastructure;` in Business/UI code.
+
+### 2.2 Clean‑Code & Style
+
+* One public type per file; namespaces mirror folders.
+* Private fields `_camelCase`; async suffix `Async`.
+* Methods ≤ 20 LOC, one level of abstraction.
+* Immutable `record` for domain entities unless aggregate needs mutation.
+
+### 2.3 Correctness & Tests
+
+* New behavior covered by **red‑green** tests; edge‑cases included.
+* Integration tests spin up in‑memory SQLite with factory from `AddHealthVoiceTestInfrastructure()`.
+* bUnit used for component interaction; snapshots updated.
+
+### 2.4 Database & Migrations
+
+* Migration script reviewed for destructive operations.
+* Apply on local dev SQLite => **passes**; apply on throw‑away SQL Server instance => **passes**.
+* CRC diff of model vs. DB after migration is zero.
+
+### 2.5 Security & Privacy
+
+* All external inputs validated (FluentValidation or guard).
+* GDPR: no PII logged; sensitive columns encrypted if required.
+* Secrets pulled via `IConfiguration` / KeyVault, never committed.
+
+### 2.6 Performance & Observability
+
+* `AsNoTracking()` used for read‑only queries.
+* Paging/`Take()` applied to large lists.
+* No blocking calls (`.Result`, `.Wait()`).
+* Telemetry: custom metrics/events added where new latency or error domains introduced.
+
+### 2.7 Deployment & Feature Flags
+
+* Risky functionality wrapped with LaunchDarkly / appSettings flag.
+* Rollback plan written in PR description.
+
+### 2.8 Documentation & Changelog
+
+* `CHANGELOG.md` entry under **\[Unreleased]**.
+* Docs site (`docs/`) updated if API surface changed.
+* Screenshots/GIFs attached for UI changes.
+
+### 2.9 Static Analysis / CI
+
+* `dotnet build -warnaserror` passes.
+* `dotnet format --verify-no-changes` passes.
+* SonarQube new‑code Quality Gate **A**.
+
+### 2.10 Never‑Do‑This Sanity Sweep
+
+Review for any of the items listed in Style Guide §14 (e.g., `async void`, `DateTime.UtcNow` directly, `IQueryable` leakage, etc.).
+
+---
+
+## 3  Roles & Sign‑Off Requirements
+
+| Role                | Responsibility                                 | Required?      |
+| ------------------- | ---------------------------------------------- | -------------- |
+| **Author**          | Complete *Self‑Check*; ensure CI green.        | ✔️             |
+| **Peer Reviewer 1** | Functional correctness, architecture layering. | ✔️             |
+| **Peer Reviewer 2** | Tests, security, migrations, style.            | ✔️             |
+| **Tech Lead**       | Optional override for critical releases.       | ⚠️ when tagged |
+| **QA**              | Exploratory/manual test on Dev environment.    | ✔️ before prod |
+
+A PR **cannot be merged** until mandatory sign‑offs are given and Quick‑Start table rows **A–L** are ✓.
+
+---
+
+## 4  Integration with the Feature Addition Playbook
+
+* **Steps 0–11** of the Playbook serve as *Definition of Ready* for review.
+* Column **L** in the Quick‑Start Table asserts that the slice followed the Playbook’s workflow.
+* Use the *Interaction Contract Matrix* (§2 of Playbook) as an acceptance checklist for end‑to‑end flows.
+
+---
+
+## 5  Definition of Done (Quality View)
+
+1. All Quick‑Start rows **✓**.
+2. CI pipeline **green**.
+3. Dev environment deployed & smoke tests pass.
+4. Documentation updated & reviewers approve.
+
+> **Remember**  Quality control is not a phase—it’s a habit embedded into every commit, review, and deployment.
