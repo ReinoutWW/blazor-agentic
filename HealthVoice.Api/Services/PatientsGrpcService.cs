@@ -40,7 +40,7 @@ public class PatientsGrpcService : Patients.PatientsBase
             }
 
             var patient = await _patientService.GetPatientByIdAsync(patientId, context.CancellationToken);
-            
+
             if (patient == null)
             {
                 throw new RpcException(new Status(StatusCode.NotFound, "Patient not found"));
@@ -122,9 +122,9 @@ public class PatientsGrpcService : Patients.PatientsBase
             _logger.LogInformation("Getting all patients");
 
             var patients = await _patientService.GetAllPatientsAsync(context.CancellationToken);
-            
+
             var response = new GetAllPatientsResponse();
-            
+
             foreach (var patient in patients)
             {
                 response.Patients.Add(patient.ToGrpcResponse());
@@ -138,4 +138,4 @@ public class PatientsGrpcService : Patients.PatientsBase
             throw new RpcException(new Status(StatusCode.Internal, "Internal server error"));
         }
     }
-} 
+}

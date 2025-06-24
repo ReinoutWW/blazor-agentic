@@ -34,7 +34,7 @@ public static class ServiceCollectionApiExtensions
             options.AssumeDefaultVersionWhenUnspecified = true;
             options.ReportApiVersions = true;
         });
-        
+
         services.AddVersionedApiExplorer(setup =>
         {
             setup.GroupNameFormat = "'v'VVV";
@@ -56,7 +56,7 @@ public static class ServiceCollectionApiExtensions
 
         // Business and Infrastructure layers
         services.AddHealthVoiceBusiness();
-        
+
         return services;
     }
 
@@ -78,7 +78,7 @@ public static class ServiceCollectionApiExtensions
 
         app.UseHttpsRedirection();
         app.UseRouting();
-        
+
         // Health checks endpoints using shared extension
         app.MapHealthVoiceHealthChecks();
 
@@ -116,7 +116,7 @@ public static class ServiceCollectionApiExtensions
     private static async Task WriteHealthCheckResponse(HttpContext context, HealthReport report)
     {
         context.Response.ContentType = "application/json";
-        
+
         var response = new
         {
             status = report.Status.ToString(),
@@ -135,4 +135,4 @@ public static class ServiceCollectionApiExtensions
 
         await context.Response.WriteAsync(JsonSerializer.Serialize(response));
     }
-} 
+}

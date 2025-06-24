@@ -15,7 +15,7 @@ builder.Services.AddRazorComponents()
 
 // Add health checks for monitoring
 builder.Services.AddHealthChecks()
-    .AddCheck("blazor-app", () => 
+    .AddCheck("blazor-app", () =>
         Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Blazor app is healthy"));
 
 var app = builder.Build();
@@ -39,7 +39,8 @@ app.UseAntiforgery();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// Map health check endpoints using shared extension
-app.MapHealthVoiceHealthChecks();
+// Map health check endpoints
+app.MapHealthChecks("/health/live");
+app.MapHealthChecks("/health/ready");
 
 await app.RunAsync();

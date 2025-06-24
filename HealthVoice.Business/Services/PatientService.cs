@@ -31,10 +31,10 @@ public class PatientService
         // Validate business rules
         if (string.IsNullOrWhiteSpace(dto.FirstName))
             throw new ArgumentException("First name is required", nameof(dto));
-        
+
         if (string.IsNullOrWhiteSpace(dto.LastName))
             throw new ArgumentException("Last name is required", nameof(dto));
-        
+
         if (string.IsNullOrWhiteSpace(dto.Email))
             throw new ArgumentException("Email is required", nameof(dto));
 
@@ -76,4 +76,4 @@ public class PatientService
         var patientRepo = _unitOfWork.Repo<Patient>();
         return await patientRepo.GetAsync(id, cancellationToken);
     }
-} 
+}

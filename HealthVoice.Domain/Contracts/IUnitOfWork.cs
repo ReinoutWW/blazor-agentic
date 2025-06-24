@@ -11,9 +11,9 @@ public interface IUnitOfWork : IDisposable
     /// <typeparam name="T">The entity type</typeparam>
     /// <returns>Repository instance</returns>
     IRepository<T> Repo<T>() where T : class;
-    
+
     /// <summary>
     /// Saves all changes made in this unit of work
     /// </summary>
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
-} 
+}
