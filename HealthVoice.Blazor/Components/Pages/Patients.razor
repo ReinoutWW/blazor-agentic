@@ -1,0 +1,159 @@
+@page "/patients"
+@using HealthVoice.Business.Services
+@using HealthVoice.Business.DTOs
+@using HealthVoice.Domain.Entities
+@inject PatientService PatientService
+@rendermode InteractiveServer
+
+<PageTitle>Patients - HealthVoice</PageTitle>
+
+<h1>Patients</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>Add New Patient</h3>
+        
+        <EditForm Model="newPatient" OnValidSubmit="CreatePatient">
+            <div class="mb-3">
+                <label class="form-label">First Name:</label>
+                <InputText @bind-Value="newPatient.FirstName" class="form-control" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Last Name:</label>
+                <InputText @bind-Value="newPatient.LastName" class="form-control" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Email:</label>
+                <InputText @bind-Value="newPatient.Email" class="form-control" />
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Date of Birth:</label>
+                <InputDate @bind-Value="newPatient.DateOfBirth" class="form-control" />
+            </div>
+            
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm me-2"></span>
+                }
+                Create Patient
+            </button>
+        </EditForm>
+        
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3">
+                @message
+            </div>
+        }
+    </div>
+    
+    <div class="col-md-6">
+        <h3>Patient List</h3>
+        
+        @if (patients == null)
+        {
+            <p>Loading patients...</p>
+        }
+        else if (!patients.Any())
+        {
+            <p>No patients found.</p>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Date of Birth</th>
+                            <th>Created</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var patient in patients)
+                        {
+                            <tr>
+                                <td>@patient.FullName</td>
+                                <td>@patient.Email</td>
+                                <td>@patient.DateOfBirth.ToString("yyyy-MM-dd")</td>
+                                <td>@patient.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private CreatePatientModel newPatient = new();
+    private IEnumerable<Patient>? patients;
+    private bool isLoading;
+    private string message = string.Empty;
+    private bool isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPatients();
+    }
+
+    private async Task CreatePatient()
+    {
+        isLoading = true;
+        message = string.Empty;
+        
+        try
+        {
+            var dto = new CreatePatientDto(
+                newPatient.FirstName,
+                newPatient.LastName,
+                newPatient.Email,
+                newPatient.DateOfBirth
+            );
+            
+            await PatientService.CreatePatientAsync(dto);
+            
+            message = "Patient created successfully!";
+            isError = false;
+            newPatient = new CreatePatientModel();
+            
+            await LoadPatients();
+        }
+        catch (Exception ex)
+        {
+            message = $"Error creating patient: {ex.Message}";
+            isError = true;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadPatients()
+    {
+        try
+        {
+            patients = await PatientService.GetAllPatientsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Error loading patients: {ex.Message}";
+            isError = true;
+        }
+    }
+
+    private class CreatePatientModel
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public DateOnly DateOfBirth { get; set; } = DateOnly.FromDateTime(DateTime.Today.AddYears(-30));
+    }
+} 
