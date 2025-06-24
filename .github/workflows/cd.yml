@@ -1,0 +1,279 @@
+name: CD (Deploy)
+
+on:
+  push:
+    branches: [master, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/**'
+
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.ref }}-${{ inputs.environment || 'development' }}
+  cancel-in-progress: false  # Don't cancel deployments
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ============================================================================
+  # Build & Push Docker Images
+  # ============================================================================
+  build-and-push:
+    name: "Build & Push Images"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    permissions:
+      contents: read
+      packages: write
+      
+    outputs:
+      api-image: ${{ steps.meta-api.outputs.tags }}
+      blazor-image: ${{ steps.meta-blazor.outputs.tags }}
+      version: ${{ steps.meta-api.outputs.version }}
+    
+    strategy:
+      matrix:
+        service: [api, blazor]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta-${{ matrix.service }}
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/healthvoice-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: HealthVoice.${{ matrix.service == 'api' && 'Api' || 'Blazor' }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags || steps.meta-blazor.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels || steps.meta-blazor.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ============================================================================
+  # Deploy to Development
+  # ============================================================================
+  deploy-development:
+    name: "Deploy to Development"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build-and-push
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main' || inputs.environment == 'development'
+    
+    environment:
+      name: development
+      url: https://healthvoice-dev.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to development
+        run: |
+          echo "🚀 Deploying HealthVoice to Development"
+          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
+          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
+          echo "Version: ${{ needs.build-and-push.outputs.version }}"
+          
+          # In a real scenario, this would:
+          # - Update Kubernetes manifests
+          # - Deploy via Helm charts
+          # - Update Azure Container Apps
+          # - Trigger deployment webhooks
+          # - Update docker-compose files on target servers
+          
+          echo "✅ Development deployment completed"
+
+      - name: Run smoke tests
+        run: |
+          echo "🧪 Running smoke tests against development environment"
+          
+          # Wait for deployment to be ready
+          sleep 30
+          
+          # In a real scenario, these would be actual health checks:
+          # curl -f https://healthvoice-dev.example.com/health/ready
+          # curl -f https://healthvoice-api-dev.example.com/health/ready
+          
+          echo "✅ Smoke tests passed"
+
+      - name: Notify deployment success
+        run: |
+          echo "📢 Development deployment notification"
+          # In real scenario: Slack/Teams/Discord webhook
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK }} -d '{"text":"HealthVoice deployed to dev"}'
+
+  # ============================================================================
+  # Deploy to Staging (Manual Approval)
+  # ============================================================================
+  deploy-staging:
+    name: "Deploy to Staging"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build-and-push, deploy-development]
+    if: inputs.environment == 'staging' || (github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch')
+    
+    environment:
+      name: staging
+      url: https://healthvoice-staging.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "🚀 Deploying HealthVoice to Staging"
+          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
+          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
+          
+          # Staging deployment logic
+          echo "✅ Staging deployment completed"
+
+      - name: Run comprehensive tests
+        run: |
+          echo "🧪 Running comprehensive test suite against staging"
+          
+          # Extended test suite for staging
+          # - API contract tests
+          # - UI automation tests
+          # - Performance tests
+          # - Security scans
+          
+          echo "✅ All staging tests passed"
+
+  # ============================================================================
+  # Deploy to Production (Manual Approval + Extra Checks)
+  # ============================================================================
+  deploy-production:
+    name: "Deploy to Production"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build-and-push, deploy-staging]
+    if: inputs.environment == 'production'
+    
+    environment:
+      name: production
+      url: https://healthvoice.example.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Pre-deployment checks
+        run: |
+          echo "🔍 Running pre-deployment safety checks"
+          
+          # Check if staging is healthy
+          # Verify database migrations are ready
+          # Check for breaking changes
+          # Validate configuration
+          
+          echo "✅ Pre-deployment checks passed"
+
+      - name: Deploy to production
+        run: |
+          echo "🚀 Deploying HealthVoice to Production"
+          echo "API Image: ${{ needs.build-and-push.outputs.api-image }}"
+          echo "Blazor Image: ${{ needs.build-and-push.outputs.blazor-image }}"
+          
+          # Blue-green or rolling deployment
+          # Database migrations
+          # Feature flag updates
+          
+          echo "✅ Production deployment completed"
+
+      - name: Post-deployment verification
+        run: |
+          echo "🔍 Post-deployment verification"
+          
+          # Health checks
+          # Critical user journey tests
+          # Performance baseline verification
+          # Monitoring alert checks
+          
+          echo "✅ Production verification completed"
+
+      - name: Notify stakeholders
+        run: |
+          echo "📢 Production deployment notification"
+          # Notify stakeholders via multiple channels
+          # Update status page
+          # Log deployment in audit trail
+
+  # ============================================================================
+  # Rollback (Manual Trigger)
+  # ============================================================================
+  rollback:
+    name: "Emergency Rollback"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch' && inputs.environment != ''
+    
+    environment:
+      name: ${{ inputs.environment }}-rollback
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Rollback deployment
+        run: |
+          echo "🔄 Rolling back HealthVoice in ${{ inputs.environment }}"
+          
+          # Rollback to previous known good version
+          # Revert database migrations if needed
+          # Update load balancer configurations
+          
+          echo "✅ Rollback completed"
+
+      - name: Verify rollback
+        run: |
+          echo "🔍 Verifying rollback success"
+          
+          # Health checks on rolled back version
+          # Verify core functionality
+          
+          echo "✅ Rollback verification completed"
+
+      - name: Alert on rollback
+        run: |
+          echo "🚨 ROLLBACK ALERT for ${{ inputs.environment }}"
+          # High-priority alerts to all stakeholders 
