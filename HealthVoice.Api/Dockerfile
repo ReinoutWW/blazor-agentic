@@ -33,13 +33,14 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 
-# Create a non-root user
+# Create a non-root user and give proper permissions
 RUN addgroup --system --gid 1001 healthvoice && \
-    adduser --system --uid 1001 --gid 1001 healthvoice
+    adduser --system --uid 1001 --gid 1001 healthvoice && \
+    chown -R healthvoice:healthvoice /app
 USER healthvoice
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:80/health/live || exit 1
+    CMD curl -f http://localhost:8080/health/live || exit 1
 
 ENTRYPOINT ["dotnet", "HealthVoice.Api.dll"] 

@@ -170,7 +170,11 @@ jobs:
     
     strategy:
       matrix:
-        service: [api, blazor]
+        include:
+          - service: api
+            port: 8080
+          - service: blazor
+            port: 8081
     
     steps:
       - name: Checkout code
@@ -197,7 +201,7 @@ jobs:
           
           # Start the container and test it responds
           docker run -d --name test-container \
-            -p 8080:80 \
+            -p ${{ matrix.port }}:8080 \
             -e ASPNETCORE_ENVIRONMENT=Development \
             healthvoice-${{ matrix.service }}:ci-test
           
@@ -205,7 +209,7 @@ jobs:
           sleep 15
           
           # Test health endpoint (both services have /health/live)
-          curl -f http://localhost:8080/health/live || exit 1
+          curl -f http://localhost:${{ matrix.port }}/health/live || exit 1
           
           # Cleanup
           docker stop test-container
