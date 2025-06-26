@@ -1,3 +1,4 @@
+using FluentValidation;
 using HealthVoice.Business.DTOs;
 using HealthVoice.Domain.Contracts;
 using HealthVoice.Domain.Entities;
@@ -31,20 +32,15 @@ public class PatientService
 
         ArgumentNullException.ThrowIfNull(dto);
 
-        // Validate business rules
-        if (string.IsNullOrWhiteSpace(dto.FirstName))
-            throw new ArgumentException("First name is required", nameof(dto));
-
-        if (string.IsNullOrWhiteSpace(dto.LastName))
-            throw new ArgumentException("Last name is required", nameof(dto));
-
-        if (string.IsNullOrWhiteSpace(dto.Email))
-            throw new ArgumentException("Email is required", nameof(dto));
-
-        // Validate date of birth is not in the future
-        var currentDate = DateOnly.FromDateTime(_clock.UtcNow);
-        if (dto.DateOfBirth > currentDate)
-            throw new ArgumentException("Date of birth cannot be in the future", nameof(dto));
+        // Validate using FluentValidation
+        var validator = new Validators.CreatePatientDtoValidator();
+        var validationResult = await validator.ValidateAsync(dto, cancellationToken);
+        
+        if (!validationResult.IsValid)
+        {
+            var errors = string.Join("; ", validationResult.Errors.Select(e => e.ErrorMessage));
+            throw new ValidationException($"Validation failed: {errors}");
+        }
 
         var patient = new Patient
         {
